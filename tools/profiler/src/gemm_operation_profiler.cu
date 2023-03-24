@@ -537,6 +537,15 @@ Status GemmOperationProfiler::initialize_workspace(
 
     gemm_workspace_.Reference->copy_from_device(gemm_workspace_.C->data());
 
+    gemm_workspace_.CacheBuster = device_context.allocate_tensor(
+      "CacheBuster",
+      library::NumericTypeID::kU8,
+      library::LayoutTypeID::kRowMajor,
+      {1, 256000000},
+      {256000000},
+      1
+    );
+
     gemm_workspace_.arguments.batch_stride_A = gemm_workspace_.A->batch_stride();
     gemm_workspace_.arguments.batch_stride_B = gemm_workspace_.B->batch_stride();
     gemm_workspace_.arguments.batch_stride_C = gemm_workspace_.C->batch_stride();
@@ -1072,7 +1081,7 @@ Status GemmOperationProfiler::profile_cutlass_(
   void *host_workspace,
   void *device_workspace) {
 
-  GpuTimer timer;
+  std::vector<GpuTimer> timers(options.profiling.iterations);
 
   // initialize gemm underlying operation to handle parallel reduction
   library::Operation const * underlying_operation = operation;
@@ -1136,12 +1145,6 @@ Status GemmOperationProfiler::profile_cutlass_(
   }
 
   //
-  // Initialize GPU timer
-  //
-
-  timer.start();
-
-  //
   // Profiling loop
   //
 
@@ -1149,6 +1152,13 @@ Status GemmOperationProfiler::profile_cutlass_(
 
   int iteration = 0;
   for (; iteration < Iterations; ++iteration) {
+    // We clear the L2 cache before each run
+    gemm_workspace_.CacheBuster->fill(0);
+
+    //
+    // Initialize GPU timer
+    //
+    timers[iteration].start();
     
     // Iterate over copies of the problem in memory
     int workspace_idx = options.profiling.warmup_iterations + iteration;
@@ -1187,19 +1197,28 @@ Status GemmOperationProfiler::profile_cutlass_(
         return status;
       }
     }
+
+    timers[iteration].stop();
   }
 
   //
   // Wait for completion
   //
+  if (cudaDeviceSynchronize() != cudaSuccess) {
+    throw std::runtime_error("Failed to synchronize with CUDA device.");
+  }
 
-  timer.stop_and_wait();
 
   //
   // Update performance result
   //
 
-  runtime = timer.duration(iteration);
+  double runtime_calc = 0;
+  for (int i = 0; i < Iterations; i++) {
+    runtime_calc += timers[i].duration(1);
+  }
+  runtime_calc /= Iterations;
+  runtime = runtime_calc;
 
   return status;
 }

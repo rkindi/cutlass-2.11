@@ -121,6 +121,7 @@ public:
     DeviceAllocation *C;
     DeviceAllocation *Computed;
     DeviceAllocation *Reference;
+    DeviceAllocation *CacheBuster;
 
     /// Number of copies of the problem workspace which are visited sequentially during
     /// profiling to avoid camping in the last level cache.
@@ -147,7 +148,7 @@ public:
     //
 
     GemmWorkspace(): 
-      A(nullptr), B(nullptr), C(nullptr), Computed(nullptr), Reference(nullptr), problem_count(1) { }
+      A(nullptr), B(nullptr), C(nullptr), Computed(nullptr), Reference(nullptr), CacheBuster(nullptr), problem_count(1) { }
   };
 
 protected:
