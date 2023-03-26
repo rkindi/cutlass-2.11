@@ -1213,12 +1213,29 @@ Status GemmOperationProfiler::profile_cutlass_(
   // Update performance result
   //
 
-  double runtime_calc = 0;
+  // MEDIAN
+
+  std::vector<double> timing_results;
   for (int i = 0; i < Iterations; i++) {
-    runtime_calc += timers[i].duration(1);
+    timing_results.push_back(timers[i].duration(1));
   }
-  runtime_calc /= Iterations;
-  runtime = runtime_calc;
+  std::sort(timing_results.begin(), timing_results.end());
+
+  double median_timing_result = 0;
+  if ( Iterations % 2 == 0 ) {
+    median_timing_result = (timing_results[Iterations / 2] + timing_results[(Iterations - 1) / 2]) / 2.0;
+  } else {
+    median_timing_result = timing_results[Iterations / 2];
+  }
+  runtime = median_timing_result;
+
+  // MEAN
+  // double runtime_calc = 0;
+  // for (int i = 0; i < Iterations; i++) {
+  //   runtime_calc += timers[i].duration(1);
+  // }
+  // runtime_calc /= Iterations;
+  // runtime = runtime_calc;
 
   return status;
 }
